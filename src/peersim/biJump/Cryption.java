@@ -10,6 +10,15 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jce.spec.ECParameterSpec;
+import org.bouncycastle.jce.spec.ECPrivateKeySpec;
+import org.bouncycastle.jce.spec.ECPublicKeySpec;
+import org.bouncycastle.math.ec.ECPoint;
+
+import javax.crypto.Cipher;
+import java.security.*;
+
 
 /**
  * @author <a href="kw_wang_@outlook.com">Kaiwen Wang</a>
@@ -24,24 +33,23 @@ public class Cryption {
 
     // Constructor to initialize and generate keys
     public Cryption() throws Exception {
-        // Generate EC key pair (secp256r1 curve)
-        KeyPairGenerator keyPairGen = KeyPairGenerator.getInstance("EC");
-        ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256r1"); // Standard EC curve
-        keyPairGen.initialize(ecSpec, new SecureRandom());
-        this.keyPair = keyPairGen.generateKeyPair();
+        Security.addProvider(new BouncyCastleProvider());
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EC", "BC");
+        keyPairGenerator.initialize(256); // 使用256位曲线
+        this.keyPair = keyPairGenerator.generateKeyPair();
     }
 
     // Public key encryption method (using the provided public key)
     public byte[] encryptWithPublicKey(PublicKey publicKey, byte[] data) throws Exception {
-        Cipher cipher = Cipher.getInstance("ECIES");  // ECIES encryption
+        Cipher cipher = Cipher.getInstance("ECIES", "BC");
         cipher.init(Cipher.ENCRYPT_MODE, publicKey);
         return cipher.doFinal(data);
     }
 
     // Private key decryption method (using the instance's private key)
     public byte[] decryptWithPrivateKey(byte[] encryptedData) throws Exception {
-        Cipher cipher = Cipher.getInstance("ECIES");  // ECIES decryption
-        cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());  // Use instance's private key
+        Cipher cipher = Cipher.getInstance("ECIES", "BC");
+        cipher.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
         return cipher.doFinal(encryptedData);
     }
 

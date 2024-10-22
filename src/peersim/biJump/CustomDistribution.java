@@ -3,7 +3,11 @@ package peersim.biJump;
 import peersim.config.Configuration;
 import peersim.core.CommonState;
 import peersim.core.Network;
+import peersim.core.Control;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.math.BigInteger;
 
 /**
@@ -13,7 +17,7 @@ import java.math.BigInteger;
  * @author Daniele Furlan, Maurizio Bonani
  * @version 1.0
  */
-public class CustomDistribution implements peersim.core.Control {
+public class CustomDistribution implements Control {
 
 	private static final String PAR_PROT = "protocol";
 
@@ -22,14 +26,18 @@ public class CustomDistribution implements peersim.core.Control {
 
 	public CustomDistribution(String prefix) {
 		protocolID = Configuration.getPid(prefix + "." + PAR_PROT);
+//		System.out.println("protocolID: " + protocolID);
 		urg = new UniformRandomGenerator(BiJumpProtocol.NODE_ID_BITS, CommonState.r);
 	}
 
 
 	public boolean execute() {
 		BigInteger tmp;
+
+
 		for (int i = 0; i < Network.size(); ++i) {
 			tmp = urg.generate();
+			((BiJumpProtocol) (Network.get(i).getProtocol(protocolID))).biJump_pid = protocolID;
 			((BiJumpProtocol) (Network.get(i).getProtocol(protocolID))).nodeId = tmp;
 		}
 

@@ -5,6 +5,7 @@ import peersim.core.CommonState;
 import peersim.core.Network;
 import peersim.core.Node;
 import peersim.edsim.EDProtocol;
+import peersim.edsim.EDSimulator;
 import peersim.transport.UnreliableTransport;
 
 import java.math.BigInteger;
@@ -19,13 +20,14 @@ import java.util.Arrays;
  * @since 2024/10/12
  */
 public class BiJumpProtocol implements EDProtocol {
+    public static int num = 0;
     public static final int NODE_ID_BITS = 160;
     public static final String PAR_TRANSPORT = "transport";
     public static final double FORWARD_PROBABILITY = 0.5;
     public static String prefix = null;
     public UnreliableTransport transport;
     public int transport_pid; // protocol identifier
-    public int bijump_pid;
+    public int biJump_pid;
     private SecureRandom secureRandom = new SecureRandom();
 
     private static boolean _ALREADY_INSTALLED = false;
@@ -37,8 +39,8 @@ public class BiJumpProtocol implements EDProtocol {
     public BiJumpProtocol(String prefix) {
         this.prefix = prefix;
         this.transport_pid = Configuration.getPid(prefix + "." + PAR_TRANSPORT);
-        this.bijump_pid = Configuration.lookupPid("bijump");
-        this.nodeId = new BigInteger(NODE_ID_BITS, CommonState.r);
+//        this.bijump_pid = Configuration.lookupPid("bijump");
+//        this.nodeId = new BigInteger(NODE_ID_BITS, CommonState.r);
         try {
             this.cryption = new Cryption();
         } catch (Exception e) {
@@ -48,7 +50,7 @@ public class BiJumpProtocol implements EDProtocol {
 
     public PublicKey getPublicKeyOfNode (int node_index) {
         Node node = Network.get(node_index);
-        BiJumpProtocol p = (BiJumpProtocol) node.getProtocol(bijump_pid);
+        BiJumpProtocol p = (BiJumpProtocol) node.getProtocol(biJump_pid);
         return p.cryption.getPublicKey();
     }
     static public Node nodeIdtoNode(BigInteger searchNodeId, int pid) {
@@ -83,13 +85,22 @@ public class BiJumpProtocol implements EDProtocol {
 
         return null;
     }
+    static public int nodeIdtoNodeIndex(BigInteger searchNodeId, int pid) {
+        if (isLastHop(searchNodeId))
+            return -1;
+        Node n = nodeIdtoNode(searchNodeId, pid);
+        if (n != null)
+            return n.getIndex();
+        else
+            return -2;
+    }
+
     private BigInteger getNodeIdFromNode(Node node) {
-        return ((BiJumpProtocol) node.getProtocol(bijump_pid)).nodeId;
+        return ((BiJumpProtocol) node.getProtocol(biJump_pid)).nodeId;
     }
 
     public Object clone() {
-        BiJumpProtocol bp = null;
-
+        BiJumpProtocol bp = new BiJumpProtocol(BiJumpProtocol.prefix);
         return bp;
     }
 
@@ -111,12 +122,12 @@ public class BiJumpProtocol implements EDProtocol {
     }
 
     // 构造nextHopID，标志最后一跳，并不使用
-    private BigInteger generateLastHopID() {
+    private static BigInteger generateLastHopID() {
         byte[] lastHopID = new byte[NODE_ID_BITS / 8];
         Arrays.fill(lastHopID, (byte) 1);
         return new BigInteger(lastHopID);
     }
-    private Boolean isLastHop(BigInteger nextHopID) {
+    private static Boolean isLastHop(BigInteger nextHopID) {
         byte[] lastHopID = new byte[NODE_ID_BITS / 8];
         Arrays.fill(lastHopID, (byte) 1);
         return Arrays.equals(nextHopID.toByteArray(), lastHopID);
@@ -142,7 +153,7 @@ public class BiJumpProtocol implements EDProtocol {
         }
     }
     private BigInteger nodeIndexToId(int index) {
-        return ((BiJumpProtocol) Network.get(index).getProtocol(bijump_pid)).nodeId;
+        return ((BiJumpProtocol) Network.get(index).getProtocol(biJump_pid)).nodeId;
     }
 
     private void processInitPkt(Node node, MessageAC msg) {
@@ -150,7 +161,7 @@ public class BiJumpProtocol implements EDProtocol {
             // 加密真实源（使用真实目的地的公钥）
             msg.isInitiator = false;
             msg.encryptedRealSrc = msg.srcID.toByteArray();
-            int realDestIndex = nodeIdtoNode(msg.destID, bijump_pid).getIndex();
+            int realDestIndex = nodeIdtoNode(msg.destID, biJump_pid).getIndex();
             msg.encryptedRealDest = msg.destID.toByteArray();
 
             int nextHopIndex = getRandNodeIndex(node);
@@ -181,8 +192,7 @@ public class BiJumpProtocol implements EDProtocol {
             msg.encryptedRealSrc = cryption.aesCTREncryptProcess(msg.encryptedRealSrc, realDest_aesKey);
             msg.encryptedRealDestKey = cryption.encryptWithPublicKey(getPublicKeyOfNode(realDestIndex), realDest_aesKey);
 
-            transport.send(node, nodeIdtoNode(msg.destID, bijump_pid), msg, bijump_pid);
-            record.recordTxHop(msg, false, false);
+            sendMessage(msg, msg.destID, biJump_pid, false, false);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -253,8 +263,7 @@ public class BiJumpProtocol implements EDProtocol {
             msg.destID = msg.nextHopID;
             msg.nextHopID = nodeIndexToId(next2HopIndex);
 
-            transport.send(node, nodeIdtoNode(msg.destID, bijump_pid), msg, bijump_pid);
-            record.recordTxHop(msg, false, false);
+            sendMessage(msg, msg.destID, biJump_pid, false, false);
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -280,8 +289,7 @@ public class BiJumpProtocol implements EDProtocol {
             secureRandom.nextBytes(msg.encryptedNext2HopKey);
 
             // 发送
-            transport.send(node, nodeIdtoNode(msg.destID, bijump_pid), msg, bijump_pid);
-            record.recordTxHop(msg, false, true);
+            sendMessage(msg, msg.destID, biJump_pid, false, true);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -299,7 +307,17 @@ public class BiJumpProtocol implements EDProtocol {
 
             // 将下一跳的aesKey置1 并加密
             byte[] next_aesKey = generateRealDestAesKey();
-            msg.encryptedNextHopKey = cryption.encryptWithPublicKey(getPublicKeyOfNode(msg.destID.intValue()), next_aesKey);
+            int destIndex = nodeIdtoNodeIndex(msg.destID, biJump_pid);
+            if (destIndex < 0) {
+                System.out.println("<<<<<<<<<<<<<<<<<<<< RealDestID: " + msg.destID + " Index: " + destIndex + ">>>>>>>>>>>>>>>>>>>>>>>");
+                System.out.printf("time:%-16d; msg.id:%-16d; src:%-16d; dest:%-16d; next:%-16d\n",
+                        CommonState.getTime(),
+                        msg.id,
+                        nodeIdtoNodeIndex(msg.srcID, biJump_pid),
+                        nodeIdtoNodeIndex(msg.destID, biJump_pid),
+                        nodeIdtoNodeIndex(msg.nextHopID, biJump_pid));
+            }
+            msg.encryptedNextHopKey = cryption.encryptWithPublicKey(getPublicKeyOfNode(nodeIdtoNodeIndex(msg.destID, biJump_pid)), next_aesKey);
 
 
             // 选择下下跳，加密真实源
@@ -309,10 +327,10 @@ public class BiJumpProtocol implements EDProtocol {
             secureRandom.nextBytes(next_aesKey);
             msg.encryptedRealSrc = cryption.aesCTREncryptProcess(msg.encryptedRealSrc, next2_aesKey);
             msg.encryptedNext2HopKey = cryption.encryptWithPublicKey(next2HopPublicKey, next2_aesKey);
-
+            msg.nextHopID = nodeIndexToId(next2HopIndex);
             // 发送
-            transport.send(node, nodeIdtoNode(msg.destID, bijump_pid), msg, bijump_pid);
-            record.recordTxHop(msg, true, false);
+            sendMessage(msg, msg.destID, biJump_pid, true, false);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -392,8 +410,7 @@ public class BiJumpProtocol implements EDProtocol {
                 responseMsg.body = cryption.aesCTREncryptProcess(responseMsg.body, next2_aesKey);
                 responseMsg.isResponseFirstHop = true;
                 // 发送
-                transport.send(node, nodeIdtoNode(msg.destID, bijump_pid), responseMsg, bijump_pid);
-                record.recordTxHop(responseMsg, false, false);
+                sendMessage(responseMsg, responseMsg.destID, biJump_pid, false, false);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -425,8 +442,7 @@ public class BiJumpProtocol implements EDProtocol {
             msg.destID = msg.nextHopID;
             msg.nextHopID = nodeIndexToId(next2HopIndex);
             // 发送
-            transport.send(node, nodeIdtoNode(msg.destID, bijump_pid), msg, bijump_pid);
-            record.recordTxHop(msg, false, false);
+            sendMessage(msg, msg.destID, biJump_pid, false, false);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -440,5 +456,14 @@ public class BiJumpProtocol implements EDProtocol {
             processPkt(node, msg);
         }
     }
+
+    private void sendMessage(MessageAC msg, BigInteger destId, int myPid, boolean isLastHop, boolean isLast2Hop) {
+        Node srcNode = nodeIdtoNode(nodeId, myPid);
+        Node destNode = nodeIdtoNode(destId, myPid);
+        transport = (UnreliableTransport) srcNode.getProtocol(transport_pid);
+        transport.send(srcNode, destNode, msg, myPid);
+        record.recordTxHop(msg, isLastHop, isLast2Hop, myPid);
+    }
+
 
 }

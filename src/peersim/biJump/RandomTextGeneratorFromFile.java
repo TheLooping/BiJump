@@ -1,11 +1,11 @@
 package peersim.biJump;
 import peersim.core.CommonState;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
-/**
+
+/**pu
  * @author <a href="kw_wang_@outlook.com">Kaiwen Wang</a>
  * @version v1.0
  * @since 2024/10/18
@@ -16,6 +16,8 @@ public class RandomTextGeneratorFromFile {
     private String text;
     // 读取资源目录下的txt文件内容为字符串
     private void loadTextFromFile(String fileName) {
+        System.out.println("Current working directory: " + System.getProperty("user.dir"));
+
         StringBuilder content = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(RandomTextGeneratorFromFile.class.getResourceAsStream("/" + fileName), StandardCharsets.UTF_8))) {
@@ -72,6 +74,7 @@ public class RandomTextGeneratorFromFile {
     }
     public RandomTextGeneratorFromFile() {
         // 读取文件中的内容
+
         loadTextFromFile("WarandPeace.txt");
         if (text.isEmpty()) {
             System.out.println("文件内容为空或未找到文件");

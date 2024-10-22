@@ -24,10 +24,11 @@ public class TrafficGenerator implements Control {
     public TrafficGenerator(String prefix) {
         pid = Configuration.getPid(prefix + "." + PAR_PROT);
         fileName = Configuration.getString(prefix + "." + TEXT_FILE);
+        System.out.println("TrafficGenerator: " + fileName + "-----------------------------------------");
         rtg = new RandomTextGeneratorFromFile(fileName);
     }
 
-    private MessageAC generateFindNodeMessage() {
+    private MessageAC generateACMessage() {
         MessageAC m = new MessageAC();
         m.timestamp = CommonState.getTime();
 
@@ -52,7 +53,7 @@ public class TrafficGenerator implements Control {
         // 每次随机发送 MSG_AC_PKT_PER_CYCLE 组消息
         // 每组消息最多发送 MAX_PKT_PER_SEND 条数据包
         for (int i = 0; i < MSG_AC_PKT_PER_CYCLE; i++) {
-            MessageAC m = generateFindNodeMessage();
+            MessageAC m = generateACMessage();
             EDSimulator.add(0, m, BiJumpProtocol.nodeIdtoNode(m.srcID, pid), pid);
             for (int j = 0; j < CommonState.r.nextInt(MAX_PKT_PER_SEND) - 1; j++) {
                 MessageAC next = m.clone(rtg.generateRandomText());

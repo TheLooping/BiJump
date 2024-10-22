@@ -36,7 +36,7 @@ public class MessageAC extends SimpleEvent {
     public int ttl = 0;
     public MessageAC() {
         super(MSG_AC);
-        this.id = ID_GENERATOR++;
+        this.id = ++ID_GENERATOR;
         this.ttl = TTL_LIMIT;
         this.isInitiator = true;
         this.isResponseFirstHop = false;

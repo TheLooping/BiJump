@@ -55,6 +55,7 @@ public class BiJumpRecord
     public BiJumpRecord()
     {
         pathRecordFile = Configuration.getString(prefix);
+        System.out.println("Record file path: " + pathRecordFile + "---------------------->>>>>>>>>>>>>>>>>>>>>>>>>>");
         // 初始化文件
         try {
             file = new File(pathRecordFile);
@@ -64,7 +65,13 @@ public class BiJumpRecord
             fw = new FileWriter(file.getAbsoluteFile());
             bw = new BufferedWriter(fw);
             // 写入表头：Time, NodeID, Direction, MSGID, ACKID, SrcID, DestID, NextHopID, RealDestID, BodyLength, TTL
-            bw.write("Time, NodeID, Direction, MSGID, ACKID, SrcID, DestID, NextHopID, RealDestID, BodyLength, TTL, isLast2Hop, isLastHop\n");
+            // "Time", "NodeID", "Direction", "MSGID", "ACKID", "SrcID", "DestID", "NextHopID", "RealDestID", "BodyLength", "TTL", "isLast2Hop", "isLastHop"
+            bw.write(String.format("%-16s%-16s%-16s%-16s%-16s%-16s%-16s%-16s%-16s%-16s%-16s%-16s%-16s\n",
+                    "Time", "NodeID", "Direction", "MSGID", "ACKID", "SrcID", "DestID", "NextHopID", "RealDestID", "BodyLength", "TTL", "isLast2Hop", "isLastHop"));
+
+
+            // 写入文件
+            bw.flush();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -75,7 +82,7 @@ public class BiJumpRecord
      * @param msg 消息
      * @param isLastHop 是否是最后一跳
      */
-    public void recordTxHop(MessageAC msg, boolean isLastHop, boolean isLast2Hop) {
+    public void recordTxHop(MessageAC msg, boolean isLastHop, boolean isLast2Hop, int myPid) {
         hopStore.add(1);
         // 写入文件
         try {
@@ -86,15 +93,31 @@ public class BiJumpRecord
             //                    isLastHop?msg.destID:"",
             //                    msg.body.length, msg.ttl,
             //                    isLast2Hop?1:0, isLastHop?1:0)
-            String record = String.format("%d, %d, %d, %d, %d, %s, %s, %s, %s, %d, %d, %d, %d\n",
-                    CommonState.getTime(), msg.srcID, 1,
-                    msg.id, msg.ackID,
-                    msg.srcID, msg.destID, msg.nextHopID,
-                    isLastHop?msg.destID:"",
-                    msg.body.length, msg.ttl,
-                    isLast2Hop?1:0, isLastHop?1:0);
+//            String record = String.format("%d, %d, %d, %d, %d, %s, %s, %s, %s, %d, %d, %d, %d\n",
+//                    CommonState.getTime(), msg.srcID, 1,
+//                    msg.id, msg.ackID,
+//                    msg.srcID, msg.destID, msg.nextHopID,
+//                    isLastHop?msg.destID:"notLastHop",
+//                    msg.body.length, msg.ttl,
+//                    isLast2Hop?1:0, isLastHop?1:0);
+            String record = String.format("%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d\n",
+                    CommonState.getTime(),
+                    BiJumpProtocol.nodeIdtoNodeIndex(msg.srcID, myPid),
+                    1,
+                    msg.id,
+                    msg.ackID,
+                    BiJumpProtocol.nodeIdtoNodeIndex(msg.srcID, myPid),
+                    BiJumpProtocol.nodeIdtoNodeIndex(msg.destID, myPid),
+                    BiJumpProtocol.nodeIdtoNodeIndex(msg.nextHopID, myPid),
+                    isLastHop ? BiJumpProtocol.nodeIdtoNodeIndex(msg.destID, myPid) : -1,
+                    msg.body.length,
+                    msg.ttl,
+                    isLast2Hop ? 1 : 0,
+                    isLastHop ? 1 : 0);
             bw.write(record);
-            System.out.println(record);
+
+            bw.flush();
+//            System.out.println(record);
         } catch (IOException e) {
             e.printStackTrace();
         }
