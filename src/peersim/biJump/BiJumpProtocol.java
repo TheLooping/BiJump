@@ -12,6 +12,7 @@ import java.math.BigInteger;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 
 
 /**
@@ -23,7 +24,7 @@ public class BiJumpProtocol implements EDProtocol {
     public static int num = 0;
     public static final int NODE_ID_BITS = 160;
     public static final String PAR_TRANSPORT = "transport";
-    public static final double FORWARD_PROBABILITY = 0.5;
+    public static final double FORWARD_PROBABILITY = 0.2;
     public static String prefix = null;
     public UnreliableTransport transport;
     public int transport_pid; // protocol identifier
@@ -136,12 +137,12 @@ public class BiJumpProtocol implements EDProtocol {
     // 根据ttl、概率是否结束随机转发过程
     private boolean shouldContinueForwarding(int ttl, double probability) {
         // 如果TTL已经为0，直接终止转发
-        if (ttl <= 0) {
+        if (ttl <= 2) {
             return false;
         }
         // 生成0到1之间的随机数，若小于概率，则终止转发
         double randomValue = secureRandom.nextDouble();
-        return !(randomValue < probability);
+        return (randomValue < probability);
     }
 
     private int getRandNodeIndex(Node node) {
@@ -310,9 +311,10 @@ public class BiJumpProtocol implements EDProtocol {
             int destIndex = nodeIdtoNodeIndex(msg.destID, biJump_pid);
             if (destIndex < 0) {
                 System.out.println("<<<<<<<<<<<<<<<<<<<< RealDestID: " + msg.destID + " Index: " + destIndex + ">>>>>>>>>>>>>>>>>>>>>>>");
-                System.out.printf("time:%-16d; msg.id:%-16d; src:%-16d; dest:%-16d; next:%-16d\n",
+                System.out.printf("time:%-16d; msg.id:%-16d; msg.ackID:%-16d; srcID:%-16d; destID:%-16d; nextHopID:%-16d\n",
                         CommonState.getTime(),
                         msg.id,
+                        msg.ackID,
                         nodeIdtoNodeIndex(msg.srcID, biJump_pid),
                         nodeIdtoNodeIndex(msg.destID, biJump_pid),
                         nodeIdtoNodeIndex(msg.nextHopID, biJump_pid));
@@ -341,10 +343,10 @@ public class BiJumpProtocol implements EDProtocol {
     // 请求：1 + body； 响应：2 + body
     private byte[] processBody(MessageAC msg) {
         if (msg.body[0] == 2) {
-            // responseMsg.ackID
-            System.out.println("Ack of" + msg.ackID);
-            System.out.println("Body is already reversed");
-            System.out.println(Arrays.toString(msg.body));
+            // 刷新时间 + 打印ackID
+            System.out.print("\r\033[K" + String.format("%.1f", CommonState.getTime()/ 1000.0) + "s, ACKID: " + msg.ackID);
+            // 打印
+//            System.out.println("Body: " + new String(msg.body, StandardCharsets.UTF_8));
             return null;
         } else if (msg.body[0] == 1) {
             byte[] reversedBody = new byte[msg.body.length];
@@ -375,10 +377,17 @@ public class BiJumpProtocol implements EDProtocol {
                 processBody(msg);
             }
             if (isRequest(msg.body)) {
+//                System.out.println(msg.toString());
+
                 // 新建响应消息
                 MessageAC responseMsg = new MessageAC();
                 responseMsg.ackID = msg.id;
-                responseMsg.isInitiator = true;
+                responseMsg.isInitiator = false;
+
+                // 解密一次真实源
+                byte[] aesKey = cryption.decryptWithPrivateKey(msg.encryptedRealDestKey);
+                msg.encryptedRealSrc = cryption.aesCTRDecryptProcess(msg.encryptedRealSrc, aesKey);
+//                System.out.println(msg.toString());
                 responseMsg.encryptedRealDest = msg.encryptedRealSrc;
 
                 // 随机生成加密的真实源和真实目的地，并不使用
@@ -387,6 +396,7 @@ public class BiJumpProtocol implements EDProtocol {
                 secureRandom.nextBytes(responseMsg.encryptedRealSrc);
                 secureRandom.nextBytes(responseMsg.encryptedRealDestKey);
 
+
                 // 更新下一跳密钥
                 responseMsg.encryptedNextHopKey = msg.encryptedNext2HopKey;
 
@@ -394,6 +404,9 @@ public class BiJumpProtocol implements EDProtocol {
                 PublicKey next2HopPublicKey = getPublicKeyOfNode(next2HopIndex);
                 byte[] next2_aesKey = new byte[Cryption.AES_KEY_SIZE + Cryption.AES_CTR_IV_SIZE];
                 secureRandom.nextBytes(next2_aesKey);
+//                System.out.println("responseMsg encryptedRealDest: " + MessageAC.bytesToHex(responseMsg.encryptedRealDest));
+                responseMsg.encryptedRealDest = cryption.aesCTREncryptProcess(responseMsg.encryptedRealDest, next2_aesKey);
+
                 responseMsg.encryptedRealDestKey = cryption.aesCTREncryptProcess(msg.encryptedRealDest, next2_aesKey);
                 responseMsg.encryptedNext2HopKey = cryption.encryptWithPublicKey(next2HopPublicKey, next2_aesKey);
 
@@ -410,6 +423,8 @@ public class BiJumpProtocol implements EDProtocol {
                 responseMsg.body = cryption.aesCTREncryptProcess(responseMsg.body, next2_aesKey);
                 responseMsg.isResponseFirstHop = true;
                 // 发送
+//                System.out.println(responseMsg.toString());
+
                 sendMessage(responseMsg, responseMsg.destID, biJump_pid, false, false);
             }
         } catch (Exception e) {

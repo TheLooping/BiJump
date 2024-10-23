@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Non-overlapping Nodes</title>
+    <style>
+        body {
+            display: flex; /* 弹性布局 */
+            flex-direction: row; /* 水平排列 */
+            align-items: flex-start; /* 顶部对齐 */
+            padding: 20px; /* 页面边距 */
+            gap: 20px; /* 元素间距 */
+        }
+
+        #canvasContainer {
+            display: flex;
+            flex-direction: column; /* 垂直排列 */
+        }
+
+        canvas {
+            border: 1px solid black;
+        }
+
+        #controls {
+            display: flex;
+            flex-direction: row; /* 水平排列 */
+            margin-left: 10px; /* 控件与画布间距 */
+        }
+
+        #dataTable {
+            margin-top: 10px; /* 表格与控件间距 */
+            height: 450px; /* 固定高度 */
+            width: 800px; /* 固定宽度 */
+            overflow-x: auto; /* 水平溢出隐藏 */
+            overflow-y: auto; /* 超出部分可滚动 */
+            border: 1px solid #ccc; /* 边框 */
+            padding: 2px; /* 内边距 */
+        }
+
+        table {
+            border-collapse: collapse; /* 合并边框 */
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid black; /* 表头和单元格边框 */
+            padding: 0px; /* 单元格内边距 */
+            font-size: 10px; /* 调整字体大小 */            
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="myCanvas" width="500" height="500"></canvas>
+
+    <div id="canvasContainer">
+        <div id="controls">
+            <input type="text" id="msgIdInput" placeholder="Enter Message ID" />
+            <button id="lookupBtn">Lookup</button>
+            <button id="keepFormArrowBtn">Keep Former Arrow</button>
+        </div>
+        <div id="dataTable">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>NodeID</th>
+                        <th>MSGID</th>
+                        <th>ACKID</th>
+                        <th>SrcID</th>
+                        <th>DestID</th>
+                        <th>NextHopID</th>
+                        <th>RealDestID</th>
+                        <th>TTL</th>
+                        <th>isLast2Hop</th>
+                        <th>isLastHop</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    
+    
+    <script>
+
+        document.getElementById('msgIdInput').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                document.getElementById('lookupBtn').click();
+            }
+        });
+
+        let keepFormerArrow = false;
+        document.getElementById('keepFormArrowBtn').addEventListener('click', () => {
+            keepFormerArrow = !keepFormerArrow; // 切换状态
+            document.getElementById('keepFormArrowBtn').innerText = keepFormerArrow ? 'Clear Arrows' : 'Keep Former Arrow'; // 更新按钮文本
+        });
+
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+
+    //     const ratio = window.devicePixelRatio || 1;
+    // canvas.width = 200 * ratio; // 设置高分辨率宽度
+    // canvas.height = 200 * ratio; // 设置高分辨率高度
+    // ctx.scale(ratio, ratio); // 进行缩放
+
+        const N = 50;
+        const radius = 10;
+        const nodes = [];
+
+        function distance(node1, node2) {
+            return Math.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2);
+        }
+
+        function isValidPosition(x, y) {
+            for (const node of nodes) {
+                if (distance(node, { x, y }) < radius * 2 * 2) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        const colors = {};
+        let colorIndex = 0;
+
+        function getColor(key) {
+            if (!colors[key]) {
+                colors[key] = `hsl(${colorIndex * 30}, 100%, 50%)`;
+                colorIndex++;
+            }
+            return colors[key];
+        }
+
+        function draw_arrow(src, dest, srcOffset, destOffset, color) {
+            const dx = dest.x - src.x;
+            const dy = dest.y - src.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const unitX = dx / length;
+            const unitY = dy / length;
+
+            const startX = src.x + unitX * srcOffset;
+            const startY = src.y + unitY * srcOffset;
+            const endX = dest.x - unitX * destOffset;
+            const endY = dest.y - unitY * destOffset;
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const headlen = 10;
+            const angle = Math.atan2(endY - startY, endX - startX);
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        function drawNodes() {
+            for (const node of nodes) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'black';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+                ctx.stroke();
+                ctx.fill();
+
+                ctx.fillStyle = 'black';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(nodes.indexOf(node), node.x, node.y); // 显示节点索引
+            }
+        }
+
+        while (nodes.length < N) {
+            const x = Math.random() * (canvas.width - 2 * radius) + radius;
+            const y = Math.random() * (canvas.height - 2 * radius) + radius;
+
+            if (isValidPosition(x, y)) {
+                nodes.push({ x, y });
+            }
+        }
+
+        drawNodes(); // 初始绘制节点
+
+        async function loadFile(filePath) {
+            const response = await fetch(filePath);
+            return await response.text();
+        }
+
+        document.getElementById('lookupBtn').addEventListener('click', async () => {
+            const inputId = document.getElementById('msgIdInput').value.trim();
+            if (!inputId) {
+                document.getElementById('output').innerText = 'Please enter a valid ID.';
+                return;
+            }
+
+            // 清除之前的箭头（仅在按钮未按下时）
+            if (!keepFormerArrow) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布
+                drawNodes(); // 重新绘制节点
+            }
+
+            const fileData = await loadFile(`../biJumpRecord.txt?t=${new Date().getTime()}`);
+            const output = processFileData(fileData, inputId);
+        });
+
+        function processFileData(data, targetId) {
+            const lines = data.trim().split('\n');
+            const tbody = document.getElementById('dataTable').getElementsByTagName('tbody')[0];
+
+            // 清空表格内容，保留表头
+            tbody.innerHTML = '';
+
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].match(/.{1,16}/g);
+                if (!cols) continue;
+
+                const time = cols[0].trim();
+                const nodeId = cols[1].trim();
+                // const direction = cols[2].trim();
+                const msgId = cols[3].trim();
+                const ackId = cols[4].trim();
+                const srcId = cols[5].trim();
+                const destId = cols[6].trim();
+                const nextHopId = cols[7].trim();
+                const realDestId = cols[8].trim();
+                // const bodyLength = cols[9].trim();
+                const ttl = cols[10].trim();
+                const isLast2Hop = cols[11].trim();
+                const isLastHop = cols[12].trim();
+
+                if (targetId === msgId && ackId !== '0') {
+                    return processFileData(data, ackId);
+                }
+
+                if (targetId === msgId || targetId === ackId) {
+                    // const color = getColor(msgId); // 获取颜色
+                    const color = (ackId === '0') ? 'red' : 'blue'; // 区分消息和应答
+                    draw_arrow(nodes[srcId], nodes[destId], radius, radius, color);
+
+                    // 创建新行并填充数据
+                    const newRow = tbody.insertRow();
+                    newRow.style.color = color;
+
+                    newRow.insertCell(0).innerText = time;
+                    newRow.insertCell(1).innerText = nodeId;
+                    // newRow.insertCell(2).innerText = direction;
+                    newRow.insertCell(2).innerText = msgId;
+                    newRow.insertCell(3).innerText = ackId;
+                    newRow.insertCell(4).innerText = srcId;
+                    newRow.insertCell(5).innerText = destId;
+                    newRow.insertCell(6).innerText = nextHopId;
+                    newRow.insertCell(7).innerText = realDestId;
+                    // newRow.insertCell(9).innerText = bodyLength;
+                    newRow.insertCell(8).innerText = ttl;
+                    newRow.insertCell(9).innerText = isLast2Hop;
+                    newRow.insertCell(10).innerText = isLastHop;
+
+                    // 添加边框样式
+                    for (let j = 0; j < 11; j++) {
+                        newRow.cells[j].style.border = '1px solid black';
+                    }
+                }
+            }
+
+            return tbody.rows.length > 0 ? '' : 'No matching records found.';
+        }
+
+
+    </script>
+</body>
+
+</html>

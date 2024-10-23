@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Non-overlapping Nodes</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="myCanvas" width="500" height="500"></canvas>
+    <div id="output"></div>
+
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+        const N = 50;
+        const radius = 10;
+        const nodes = [];
+        const arrows = [];
+        const arrowLifetime = 20000; // 箭头存活时间（毫秒）
+
+        function distance(node1, node2) {
+            return Math.sqrt((node1.x - node2.x) ** 2 + (node1.y - node2.y) ** 2);
+        }
+
+        function isValidPosition(x, y) {
+            for (const node of nodes) {
+                if (distance(node, { x, y }) < radius * 2) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        const colors = {};
+        let colorIndex = 0;
+
+        function getColor(key) {
+            if (!colors[key]) {
+                colors[key] = `hsl(${colorIndex * 30}, 100%, 50%)`;
+                colorIndex++;
+            }
+            return colors[key];
+        }
+
+        function drawNode(node, index) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'black';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+            ctx.stroke();
+            ctx.fill();
+
+            // 在圆圈中心绘制索引
+            ctx.fillStyle = 'black';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(index, node.x, node.y);
+        }
+
+        function draw_arrow(src, dest, srcOffset, destOffset, color) {
+            const dx = dest.x - src.x;
+            const dy = dest.y - src.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const unitX = dx / length;
+            const unitY = dy / length;
+
+            const startX = src.x + unitX * srcOffset;
+            const startY = src.y + unitY * srcOffset;
+            const endX = dest.x - unitX * destOffset;
+            const endY = dest.y - unitY * destOffset;
+
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const headlen = 10;
+            const angle = Math.atan2(endY - startY, endX - startX);
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        function drawNodes() {
+            for (let i = 0; i < nodes.length; i++) {
+                drawNode(nodes[i], i);
+            }
+        }
+
+        function updateArrows() {
+            const currentTime = Date.now();
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                if (currentTime - arrows[i].time > arrowLifetime) {
+                    arrows.splice(i, 1);
+                }
+            }
+        }
+
+        function drawArrows() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布
+            drawNodes(); // 重新绘制节点
+            for (const arrow of arrows) {
+                draw_arrow(nodes[arrow.src], nodes[arrow.dest], radius, radius, arrow.color);
+            }
+        }
+
+        // 生成节点
+        while (nodes.length < N) {
+            const x = Math.random() * (canvas.width - 2 * radius) + radius;
+            const y = Math.random() * (canvas.height - 2 * radius) + radius;
+
+            if (isValidPosition(x, y)) {
+                nodes.push({ x, y });
+            }
+        }
+
+        // 读取文件内容
+        fetch('biJumpRecord.txt')
+            .then(response => response.text())
+            .then(data => {
+                const lines = data.split('\n').slice(1);
+                let currentLineIndex = 0;
+
+                const intervalId = setInterval(() => {
+                    if (currentLineIndex < lines.length) {
+                        const columns = lines[currentLineIndex].trim().split(/\s+/);
+                        if (columns.length < 7) {
+                            currentLineIndex++;
+                            return; // Skip empty lines
+                        }
+
+                        const MSGID = columns[3];
+                        const ACKID = columns[4];
+                        const SrcID = parseInt(columns[5]);
+                        const DestID = parseInt(columns[6]);
+
+                        const id = (ACKID !== '0') ? ACKID : MSGID;
+
+                        if (SrcID < nodes.length && DestID < nodes.length) {
+                            arrows.push({
+                                src: SrcID,
+                                dest: DestID,
+                                color: getColor(id),
+                                time: Date.now() // 记录创建时间
+                            });
+                        }
+
+                        currentLineIndex++;
+                    } else {
+                        clearInterval(intervalId); // 如果读完所有行，停止定时器
+                    }
+                }, 1000); // 每秒读取一行
+
+                setInterval(() => {
+                    updateArrows(); // 更新箭头状态
+                    drawArrows(); // 绘制箭头
+                }, 100); // 每100毫秒更新画布
+            })
+            .catch(error => console.error('Error loading file:', error));
+    </script>
+</body>
+</html>

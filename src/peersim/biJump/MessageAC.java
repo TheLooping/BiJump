@@ -2,6 +2,7 @@ package peersim.biJump;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /**
  * @author <a href="kw_wang_@outlook.com">Kaiwen Wang</a>
@@ -10,7 +11,7 @@ import java.nio.ByteBuffer;
  */
 public class MessageAC extends SimpleEvent {
     public static int MSG_AC = 16; // anonymous communication
-    private static final int TTL_LIMIT = 4;
+    private static final int TTL_LIMIT = 4; // 消息最大跳数
     private static long ID_GENERATOR = 0;
 
     public boolean isInitiator; // 是否是发起者发出
@@ -79,6 +80,46 @@ public class MessageAC extends SimpleEvent {
 
     public byte[] intToBytes(int value) {
         return ByteBuffer.allocate(4).putInt(value).array();
+    }
+    public static String bytesToHex(byte[] bytes) {
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : bytes) {
+            String hex = Integer.toHexString(b & 0xFF); // 转换为无符号整数
+            if (hex.length() < 2) {
+                hexString.append('0'); // 如果只有一位，前面补零
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString().toUpperCase(); // 转换为大写
+    }
+
+    public String toString(int myPid) {
+        return String.format("""
+                        MessageAC: id=%d, ackID=%d, ttl=%d,\s
+                        srcID=%s, destID=%s, nextHopID=%s,\s
+                        encryptedRealDest=%s, encryptedNextHopKey=%s, encryptedNext2HopKey=%s,\s
+                        encryptedRealSrc=%s, encryptedRealDestKey=%s,\s
+                        """,
+                id, ackID, ttl,
+                BiJumpProtocol.nodeIdtoNodeIndex(srcID, myPid), BiJumpProtocol.nodeIdtoNodeIndex(destID, myPid), BiJumpProtocol.nodeIdtoNodeIndex(nextHopID, myPid),
+                bytesToHex(encryptedRealDest), bytesToHex(encryptedNextHopKey), bytesToHex(encryptedNext2HopKey),
+                bytesToHex(encryptedRealSrc), bytesToHex(encryptedRealDestKey));
+    }
+
+    public String toString() {
+        return String.format("""
+                        MessageAC: id=%d, ackID=%d, ttl=%d,\s
+                        srcID=%s, destID=%s, nextHopID=%s,\s
+                        encryptedRealDest=%s,\s
+                        encryptedNextHopKey=%s,\s
+                        encryptedNext2HopKey=%s,\s
+                        encryptedRealSrc=%s,\s
+                        encryptedRealDestKey=%s,\s
+                        """,
+                id, ackID, ttl, srcID, destID, nextHopID,
+                bytesToHex(encryptedRealDest), bytesToHex(encryptedNextHopKey), bytesToHex(encryptedNext2HopKey),
+                bytesToHex(encryptedRealSrc), bytesToHex(encryptedRealDestKey));
+
     }
 
 
