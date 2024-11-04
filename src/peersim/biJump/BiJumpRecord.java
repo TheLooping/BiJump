@@ -100,7 +100,7 @@ public class BiJumpRecord
 //                    isLastHop?msg.destID:"notLastHop",
 //                    msg.body.length, msg.ttl,
 //                    isLast2Hop?1:0, isLastHop?1:0);
-            String record = String.format("%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d\n",
+            String record = String.format("%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16d%-16.3f%-16d%-16d\n",
                     CommonState.getTime(),
                     BiJumpProtocol.nodeIdtoNodeIndex(msg.srcID, myPid),
                     1,
@@ -112,8 +112,10 @@ public class BiJumpRecord
                     isLastHop ? BiJumpProtocol.nodeIdtoNodeIndex(msg.destID, myPid) : -1,
                     msg.body.length,
                     msg.ttl,
+                    msg.rndFwdPara,
                     isLast2Hop ? 1 : 0,
                     isLastHop ? 1 : 0);
+
             bw.write(record);
 
             bw.flush();

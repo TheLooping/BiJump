@@ -35,12 +35,15 @@ public class MessageAC extends SimpleEvent {
     public boolean isResponseFirstHop;// 是否是响应第一跳
 
     public int ttl = 0;
+
+    public double rndFwdPara; // 转发概率参数
     public MessageAC() {
         super(MSG_AC);
         this.id = ++ID_GENERATOR;
         this.ttl = TTL_LIMIT;
         this.isInitiator = true;
         this.isResponseFirstHop = false;
+        this.rndFwdPara = ForwardingParameterCalculator.init;
     }
     public MessageAC(BigInteger srcID, BigInteger destID, byte[] body) {
         this();

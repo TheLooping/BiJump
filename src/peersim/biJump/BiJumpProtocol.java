@@ -145,6 +145,19 @@ public class BiJumpProtocol implements EDProtocol {
         return (randomValue < probability);
     }
 
+    // 根据随机收敛变化的转发参数结束转发过程
+    private boolean shouldContinueForwardingbyRFP(MessageAC msg) {
+        double newRndFwdPara = ForwardingParameterCalculator.iterate(msg.rndFwdPara);
+//        System.out.println("msg.rndFwdPara: " + msg.rndFwdPara + " -> " + newRndFwdPara);
+        // 使用 g 函数判断是否停止
+        msg.rndFwdPara = newRndFwdPara;
+        double r = secureRandom.nextDouble();
+        if (r > ForwardingProbabilityCalculator.g(newRndFwdPara, ForwardingParameterCalculator.epsilon)) {
+            return false;
+        }
+        return true;
+    }
+
     private int getRandNodeIndex(Node node) {
         while (true) {
             int next2HopIndex = secureRandom.nextInt(Network.size());
@@ -228,7 +241,13 @@ public class BiJumpProtocol implements EDProtocol {
             }
 
             // 判断是否结束转发
-            if (!shouldContinueForwarding(msg.ttl, FORWARD_PROBABILITY)) {
+//            if (!shouldContinueForwarding(msg.ttl, FORWARD_PROBABILITY)) {
+//                processLast2HopPkt(node, msg);
+//                return;
+//            }
+
+            // 判断是否结束转发
+            if (!shouldContinueForwardingbyRFP(msg)) {
                 processLast2HopPkt(node, msg);
                 return;
             }
@@ -344,7 +363,7 @@ public class BiJumpProtocol implements EDProtocol {
     private byte[] processBody(MessageAC msg) {
         if (msg.body[0] == 2) {
             // 刷新时间 + 打印ackID
-            System.out.print("\r\033[K" + String.format("%.1f", CommonState.getTime()/ 1000.0) + "s, ACKID: " + msg.ackID);
+//            System.out.print("\r\033[K" + String.format("%.1f", CommonState.getTime()/ 1000.0) + "s, ACKID: " + msg.ackID);
             // 打印
 //            System.out.println("Body: " + new String(msg.body, StandardCharsets.UTF_8));
             return null;

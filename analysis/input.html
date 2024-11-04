@@ -74,7 +74,7 @@
                         <th>DestID</th>
                         <th>NextHopID</th>
                         <th>RealDestID</th>
-                        <th>TTL</th>
+                        <th>RndFwdParam</th>
                         <th>isLast2Hop</th>
                         <th>isLastHop</th>
                     </tr>
@@ -223,30 +223,39 @@
 
             // 清空表格内容，保留表头
             tbody.innerHTML = '';
+            let req_hops = 0;
+            let res_hops = 0;
 
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].match(/.{1,16}/g);
                 if (!cols) continue;
 
-                const time = cols[0].trim();
-                const nodeId = cols[1].trim();
-                // const direction = cols[2].trim();
-                const msgId = cols[3].trim();
-                const ackId = cols[4].trim();
-                const srcId = cols[5].trim();
-                const destId = cols[6].trim();
-                const nextHopId = cols[7].trim();
-                const realDestId = cols[8].trim();
-                // const bodyLength = cols[9].trim();
-                const ttl = cols[10].trim();
-                const isLast2Hop = cols[11].trim();
-                const isLastHop = cols[12].trim();
+                let j = 0;
+                const time = cols[j++].trim();
+                const nodeId = cols[j++].trim();
+                const direction = cols[j++].trim();
+                const msgId = cols[j++].trim();
+                const ackId = cols[j++].trim();
+                const srcId = cols[j++].trim();
+                const destId = cols[j++].trim();
+                const nextHopId = cols[j++].trim();
+                const realDestId = cols[j++].trim();
+                const bodyLength = cols[j++].trim();
+                const ttl = cols[j++].trim();
+                const rndFwdParam = cols[j++].trim();
+                const isLast2Hop = cols[j++].trim();
+                const isLastHop = cols[j++].trim();
 
                 if (targetId === msgId && ackId !== '0') {
                     return processFileData(data, ackId);
                 }
 
                 if (targetId === msgId || targetId === ackId) {
+                    if (ackId === '0') {
+                        req_hops++;
+                    } else {
+                        res_hops++;
+                    }
                     // const color = getColor(msgId); // 获取颜色
                     const color = (ackId === '0') ? 'red' : 'blue'; // 区分消息和应答
                     draw_arrow(nodes[srcId], nodes[destId], radius, radius, color);
@@ -254,27 +263,35 @@
                     // 创建新行并填充数据
                     const newRow = tbody.insertRow();
                     newRow.style.color = color;
+                    let j = 0;
 
-                    newRow.insertCell(0).innerText = time;
-                    newRow.insertCell(1).innerText = nodeId;
-                    // newRow.insertCell(2).innerText = direction;
-                    newRow.insertCell(2).innerText = msgId;
-                    newRow.insertCell(3).innerText = ackId;
-                    newRow.insertCell(4).innerText = srcId;
-                    newRow.insertCell(5).innerText = destId;
-                    newRow.insertCell(6).innerText = nextHopId;
-                    newRow.insertCell(7).innerText = realDestId;
-                    // newRow.insertCell(9).innerText = bodyLength;
-                    newRow.insertCell(8).innerText = ttl;
-                    newRow.insertCell(9).innerText = isLast2Hop;
-                    newRow.insertCell(10).innerText = isLastHop;
+                    newRow.insertCell(j++).innerText = time;
+                    newRow.insertCell(j++).innerText = nodeId;
+                    // newRow.insertCell(j++).innerText = direction;
+                    newRow.insertCell(j++).innerText = msgId;
+                    newRow.insertCell(j++).innerText = ackId;
+                    newRow.insertCell(j++).innerText = srcId;
+                    newRow.insertCell(j++).innerText = destId;
+                    newRow.insertCell(j++).innerText = nextHopId;
+                    newRow.insertCell(j++).innerText = realDestId;
+                    // newRow.insertCell(j++).innerText = ttl;
+                    newRow.insertCell(j++).innerText = rndFwdParam;
+                    newRow.insertCell(j++).innerText = isLast2Hop;
+                    newRow.insertCell(j++).innerText = isLastHop;
 
                     // 添加边框样式
-                    for (let j = 0; j < 11; j++) {
-                        newRow.cells[j].style.border = '1px solid black';
-                    }
+                    for (let k = 0; k < newRow.cells.length; k++) {
+                        newRow.cells[k].style.border = '1px solid black';
+                    }                 
                 }
+
+                
             }
+            const newRow = tbody.insertRow();
+            const cell1 = newRow.insertCell(0);
+            cell1.colSpan = 11;
+            cell1.style.color = 'black';
+            cell1.innerText = `Request Hops: ${req_hops}; Response Hops: ${res_hops}`;
 
             return tbody.rows.length > 0 ? '' : 'No matching records found.';
         }
